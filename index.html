@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#191b35">
+  <meta name="description" content="Natalia Goes to School: bezpłatna, prywatna gra retro w przeglądarce. Pomóż Natalii dotrzeć do szkoły przez Ochojno.">
+  <title>Natalia Goes to School — Ochojno Adventure</title>
+  <style>
+    :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #f9edda; background: radial-gradient(ellipse at top, #30375e, #141527 70%); min-height: 100vh; }
+    .shell { width: min(1050px, 100%); margin: 0 auto; padding: 20px clamp(12px, 3vw, 32px) 36px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 15px; flex-wrap: wrap; }
+    h1 { margin: 8px 0; font-size: clamp(20px, 3.8vw, 34px); color: #ffe89f; letter-spacing: .035em; text-shadow: 3px 3px #793d7d; }
+    p { line-height: 1.6; }
+    .subtitle { margin: 3px 0 16px; color: #ccd1ed; }
+    .hud { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+    .pill { border: 1px solid #6b719c; border-radius: 7px; padding: 9px 12px; background: #232746; }
+    button { cursor: pointer; color: #131b2a; background: #ffe89f; border: 2px solid #dfb66e; border-bottom-width: 4px; border-radius: 7px; padding: 10px 14px; font: inherit; font-weight: 700; }
+    button:hover { filter: brightness(1.08); }
+    button:focus-visible { outline: 3px solid #84e9ec; outline-offset: 3px; }
+    .viewport { border: 6px solid #3e456f; border-radius: 10px; overflow: hidden; box-shadow: 0 18px 48px #101021aa; background: #7fc8d6; }
+    canvas { display: block; width: 100%; height: auto; aspect-ratio: 16/9; image-rendering: pixelated; }
+    .controls { display: grid; grid-template-columns: repeat(3, 74px); grid-template-rows: 58px 58px; justify-content: center; gap: 6px; margin: 18px 0; }
+    .controls button { font-size: 24px; padding: 0; touch-action: none; user-select: none; }
+    .up { grid-column: 2; grid-row: 1; } .left { grid-column: 1; grid-row: 2; }
+    .down { grid-column: 2; grid-row: 2; } .right { grid-column: 3; grid-row: 2; }
+    .status { min-height: 2.5em; color: #b7ffcf; font-weight: 700; }
+    .help { color: #cad2ed; font-size: .9rem; }
+    .footer { font-size: .8rem; color: #aab1d4; border-top: 1px solid #424769; margin-top: 18px; padding-top: 12px; }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div>
+        <h1>🎒 NATALIA GOES TO SCHOOL</h1>
+        <p class="subtitle">Ochojno Adventure · mała pixelowa przygoda · PL</p>
+      </div>
+      <button type="button" id="restart">↺ Nowa gra</button>
+    </header>
+    <div class="hud">
+      <span class="pill">📚 Zeszyty: <b id="collected">0 / 3</b></span>
+      <span class="pill">⏱ Czas: <b id="clock">0.0 s</b></span>
+      <span class="pill">🏆 Rekord: <b id="best">—</b></span>
+      <button type="button" id="pause">⏸ Pauza</button>
+    </div>
+    <div class="viewport">
+      <canvas id="game" width="960" height="540" role="img" aria-label="Mapa Ochojna. Steruj Natalią za pomocą strzałek, WASD lub przycisków pod grą. Zbierz trzy zeszyty i idź do szkoły.">Twoja przeglądarka nie obsługuje Canvas.</canvas>
+    </div>
+    <p id="status" class="status" role="status" aria-live="polite">Znajdź 3 zeszyty i dotrzyj do szkoły po prawej stronie mapy.</p>
+    <div class="controls" aria-label="Sterowanie dotykowe">
+      <button type="button" class="up" data-direction="up" aria-label="Góra">▲</button>
+      <button type="button" class="left" data-direction="left" aria-label="Lewo">◀</button>
+      <button type="button" class="down" data-direction="down" aria-label="Dół">▼</button>
+      <button type="button" class="right" data-direction="right" aria-label="Prawo">▶</button>
+    </div>
+    <p class="help">Sterowanie: strzałki / WASD, <b>P</b> — pauza, <b>R</b> — restart. Na telefonie użyj przycisków. Omijaj płoty i krzaki. Gra działa lokalnie, bez śledzenia i połączeń sieciowych.</p>
+    <p class="footer">RO-NOC / ROCyber Solutions · Wersja 1.0 — edukacyjna mini-przygoda. Wyłącznie fikcyjna mapa inspirowana Ochojnem.</p>
+  </div>
+  <script>
+    (() => {
+      'use strict';
+      const canvas = document.getElementById('game');
+      const ctx = canvas.getContext('2d');
+      const ui = {
+        books: document.getElementById('collected'),
+        clock: document.getElementById('clock'),
+        best: document.getElementById('best'),
+        status: document.getElementById('status'),
+        pause: document.getElementById('pause')
+      };
+      const obstacles = [
+        { x: 210, y: 196, w: 73, h: 220, type: 'hedge' },
+        { x: 436, y: 50, w: 79, h: 205, type: 'fence' },
+        { x: 644, y: 290, w: 88, h: 192, type: 'hedge' }
+      ];
+      const bookStart = [{ x: 131, y: 96 }, { x: 363, y: 429 }, { x: 735, y: 127 }];
+      const school = { x: 843, y: 70, w: 94, h: 130 };
+      const pressed = new Set();
+      const player = { x: 54, y: 459, w: 26, h: 32 };
+      let books = bookStart.map((item) => ({ ...item, found: false }));
+      let elapsed = 0;
+      let lastFrame = 0;
+      let paused = false;
+      let won = false;
+      let best = null;
+
+      try {
+        const stored = Number(localStorage.getItem('natalia_school_best_v1'));
+        if (Number.isFinite(stored) && stored > 0) best = stored;
+      } catch { /* Storage can be blocked in privacy mode. */ }
+
+      const intersects = (a, b) =>
+        a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+      function setStatus(message) { ui.status.textContent = message; }
+      function updateUI() {
+        ui.books.textContent = books.filter((book) => book.found).length + ' / 3';
+        ui.clock.textContent = elapsed.toFixed(1) + ' s';
+        ui.best.textContent = best === null ? '—' : best.toFixed(1) + ' s';
+      }
+      function restart() {
+        player.x = 54;
+        player.y = 459;
+        books = bookStart.map((item) => ({ ...item, found: false }));
+        elapsed = 0; paused = false; won = false; lastFrame = 0; pressed.clear();
+        ui.pause.textContent = '⏸ Pauza';
+        setStatus('Znajdź 3 zeszyty i dotrzyj do szkoły!');
+        updateUI();
+      }
+      function togglePause() {
+        if (won) return;
+        paused = !paused;
+        ui.pause.textContent = paused ? '▶ Wznów' : '⏸ Pauza';
+        setStatus(paused ? 'Pauza. Naciśnij P lub Wznów.' : 'Gramy dalej!');
+      }
+      function update(dt) {
+        const x = Number(pressed.has('right')) - Number(pressed.has('left'));
+        const y = Number(pressed.has('down')) - Number(pressed.has('up'));
+        const length = Math.hypot(x, y) || 1;
+        const speed = 205 * dt;
+        const oldX = player.x;
+        player.x = Math.min(960 - player.w - 6, Math.max(6, player.x + (x / length) * speed));
+        if (obstacles.some((wall) => intersects(player, wall))) player.x = oldX;
+        const oldY = player.y;
+        player.y = Math.min(540 - player.h - 6, Math.max(6, player.y + (y / length) * speed));
+        if (obstacles.some((wall) => intersects(player, wall))) player.y = oldY;
+
+        for (const book of books) {
+          if (!book.found && intersects(player, { x: book.x, y: book.y, w: 28, h: 26 })) {
+            book.found = true;
+            setStatus('Świetnie! Znaleziony zeszyt: ' + books.filter((item) => item.found).length + '/3.');
+          }
+        }
+        if (intersects(player, school)) {
+          if (books.every((book) => book.found)) {
+            won = true;
+            if (best === null || elapsed < best) {
+              best = elapsed;
+              try { localStorage.setItem('natalia_school_best_v1', String(best)); } catch { /* optional */ }
+            }
+            setStatus('Brawo! Natalia dotarła do szkoły w ' + elapsed.toFixed(1) + ' s. Możesz zagrać ponownie.');
+          } else setStatus('Szkoła jest tutaj! Najpierw znajdź wszystkie trzy zeszyty.');
+        }
+        elapsed += dt;
+        updateUI();
+      }
+
+      function rectangle(x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); }
+      function drawBackground() {
+        rectangle(0, 0, 960, 540, '#7ec6bb');
+        for (let row = 0; row < 540; row += 64) {
+          for (let col = 0; col < 960; col += 64) {
+            rectangle(col + 15, row + 26, 5, 7, '#6ab49d');
+            rectangle(col + 37, row + 12, 3, 5, '#c8dfa6');
+          }
+        }
+        rectangle(0, 256, 960, 57, '#d7c9a5');
+        rectangle(0, 268, 960, 4, '#f1e4bc');
+        rectangle(324, 0, 67, 540, '#d7c9a5');
+        rectangle(346, 0, 5, 540, '#f1e4bc');
+        ctx.font = 'bold 16px monospace'; ctx.fillStyle = '#28375b';
+        ctx.fillText('OCHOJNO', 20, 30);
+      }
+      function drawObstacles() {
+        obstacles.forEach((o) => {
+          rectangle(o.x + 5, o.y + 6, o.w, o.h, '#426274');
+          rectangle(o.x, o.y, o.w, o.h, o.type === 'hedge' ? '#39734e' : '#92674e');
+          for (let yy = o.y + 10; yy < o.y + o.h - 7; yy += 22) {
+            rectangle(o.x + 7, yy, o.w - 14, 6, o.type === 'hedge' ? '#7cc36c' : '#cfb089');
+          }
+        });
+        rectangle(school.x + 4, school.y + 8, school.w, school.h, '#42536a');
+        rectangle(school.x, school.y, school.w, school.h, '#f0b777');
+        rectangle(school.x + 8, school.y + 19, school.w - 16, 38, '#6faab9');
+        rectangle(school.x + 37, school.y + 76, 26, 54, '#563e5d');
+        ctx.font = 'bold 16px monospace'; ctx.fillStyle = '#262a46';
+        ctx.fillText('SZKOŁA', school.x + 15, school.y - 12);
+      }
+      function drawBooks() {
+        books.forEach((book) => {
+          if (book.found) return;
+          rectangle(book.x + 3, book.y + 4, 28, 27, '#253450');
+          rectangle(book.x, book.y, 28, 27, '#f6e48b');
+          rectangle(book.x + 7, book.y + 3, 3, 21, '#e78a62');
+          rectangle(book.x + 14, book.y + 8, 10, 2, '#966e68');
+        });
+      }
+      function drawPlayer() {
+        rectangle(player.x + 3, player.y + 5, player.w, player.h, '#3b5571');
+        rectangle(player.x + 5, player.y, 17, 14, '#e8b28c');
+        rectangle(player.x + 3, player.y - 2, 21, 7, '#453457');
+        rectangle(player.x, player.y + 15, player.w, 16, '#a65ca7');
+        rectangle(player.x + 19, player.y + 15, 9, 16, '#f3a85c');
+        rectangle(player.x + 4, player.y + 30, 7, 6, '#2b315a');
+        rectangle(player.x + 17, player.y + 30, 7, 6, '#2b315a');
+      }
+      function drawOverlay(title, subtitle) {
+        rectangle(160, 188, 640, 158, '#1b213deb');
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffe89f'; ctx.font = 'bold 34px monospace';
+        ctx.fillText(title, 480, 255);
+        ctx.fillStyle = '#f7f0dc'; ctx.font = '19px monospace';
+        ctx.fillText(subtitle, 480, 300);
+        ctx.textAlign = 'start';
+      }
+      function render(frame) {
+        const dt = lastFrame === 0 ? 0 : Math.min((frame - lastFrame) / 1000, 0.05);
+        lastFrame = frame;
+        if (!paused && !won) update(dt);
+        drawBackground(); drawObstacles(); drawBooks(); drawPlayer();
+        if (paused) drawOverlay('PAUZA', 'Naciśnij P, aby wrócić do gry');
+        if (won) drawOverlay('MISJA UKOŃCZONA!', 'Czas: ' + elapsed.toFixed(1) + ' s · R — nowa gra');
+        requestAnimationFrame(render);
+      }
+
+      const mapping = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+        KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right' };
+      window.addEventListener('keydown', (event) => {
+        if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+        const direction = mapping[event.code];
+        if (direction) { event.preventDefault(); pressed.add(direction); }
+        if (event.code === 'KeyP' && !event.repeat) togglePause();
+        if (event.code === 'KeyR' && !event.repeat) restart();
+      });
+      window.addEventListener('keyup', (event) => {
+        const direction = mapping[event.code];
+        if (direction) pressed.delete(direction);
+      });
+      window.addEventListener('blur', () => pressed.clear());
+      document.querySelectorAll('[data-direction]').forEach((button) => {
+        const direction = button.getAttribute('data-direction');
+        button.addEventListener('pointerdown', (event) => {
+          event.preventDefault(); pressed.add(direction); button.setPointerCapture(event.pointerId);
+        });
+        for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+          button.addEventListener(name, () => pressed.delete(direction));
+        }
+      });
+      document.getElementById('restart').addEventListener('click', restart);
+      ui.pause.addEventListener('click', togglePause);
+      if (!ctx) { setStatus('Canvas nie jest obsługiwany przez tę przeglądarkę.'); return; }
+      restart();
+      requestAnimationFrame(render);
+    })();
+  </script>
+</body>
+</html>
