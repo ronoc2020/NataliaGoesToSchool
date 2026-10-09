@@ -18,13 +18,23 @@ The game has keyboard controls (WASD / arrows), on-screen touch controls, restar
 - No GitHub Actions workflows; updating this repository consumes **zero Actions runner minutes**.
 - The map is fictional, not a real child route or school map.
 
+## Offline automated tests
+
+No dependencies or GitHub Actions needed. With Node.js 18+:
+
+```bash
+node --test test/game.test.mjs
+```
+
+The tests check JavaScript syntax, offline-only resources, the full 3-notebook route to the school, high-score saving, pause and restart. A separate browser/device check is still recommended before public release.
+
 ## Hosting
 
 The repository now contains a self-contained `index.html` that can be served by any static web server.
 
 To publish with GitHub Pages, open **Settings → Pages**, select **Deploy from a branch**, branch `main`, folder `/ (root)`, then save. Do this only if Pages is allowed on your account; GitHub may still create internal Pages deployment jobs. A manual upload to another static host is also possible.
 
-**Current status:** playable source committed on `main`; a public hosted demo and full browser test have not been verified.
+**Current status:** playable source and offline gameplay tests committed on `main`; public hosting and real-browser visual QA remain unverified.
 
 ## Controls
 
