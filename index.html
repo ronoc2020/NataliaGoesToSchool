@@ -118,6 +118,7 @@
         setStatus(paused ? 'Pauza. Naciśnij P lub Wznów.' : 'Gramy dalej!');
       }
       function update(dt) {
+        elapsed += dt;
         const x = Number(pressed.has('right')) - Number(pressed.has('left'));
         const y = Number(pressed.has('down')) - Number(pressed.has('up'));
         const length = Math.hypot(x, y) || 1;
@@ -145,7 +146,6 @@
             setStatus('Brawo! Natalia dotarła do szkoły w ' + elapsed.toFixed(1) + ' s. Możesz zagrać ponownie.');
           } else setStatus('Szkoła jest tutaj! Najpierw znajdź wszystkie trzy zeszyty.');
         }
-        elapsed += dt;
         updateUI();
       }
 
